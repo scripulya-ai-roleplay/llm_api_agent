@@ -1,0 +1,23 @@
+# Version control
+.git/
+.gitignore
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Environments / IDE
+.env
+.idea/
+.vscode/
+
+# Docs / OS
+*.md
+docs/
+.DS_Store

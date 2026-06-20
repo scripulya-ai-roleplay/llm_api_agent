@@ -1,0 +1,55 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    services:
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # STAGE 0: Linting & Formatting
+      - name: Stage 0a - Ruff Linter
+        uses: astral-sh/ruff-action@v1
+        with:
+          args: "check ."
+
+      - name: Stage 0b - Ruff Formatter
+        uses: astral-sh/ruff-action@v1
+        with:
+          args: "format --check ."
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # STAGE 1: Unit tests — no broker needed
+      - name: Stage 1 - Unit Tests
+        run: pytest tests/unit -m unit
+
+      # STAGE 2: End-to-end tests against the rabbitmq service above
+      - name: Stage 2 - E2E Tests
+        env:
+          RABBIT_URL: amqp://guest:guest@127.0.0.1:5672/
+          LLM_REQUEST_QUEUE: llm.agent.request
+          LLM_RESULT_QUEUE: llm.agent.result
+        run: pytest tests/e2e -m e2e
