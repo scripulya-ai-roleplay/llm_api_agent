@@ -32,11 +32,11 @@ def create_app() -> FastStream:
 	setup_dishka(container=container, app=app, auto_inject=True)
 
 	@app.on_startup
-	async def on_startup(context) -> None:  # noqa: ANN001 - context: ContextRepo
+	async def on_startup() -> None:
 		logger.info("agent up; in=%s out=%s", settings.LLM_REQUEST_QUEUE, settings.LLM_RESULT_QUEUE)
 
 	@app.on_shutdown
-	async def on_shutdown(context) -> None:  # noqa: ANN001 - context: ContextRepo
+	async def on_shutdown() -> None:
 		logger.info("agent shutting down")
 		await container.close()
 
