@@ -15,7 +15,10 @@ logger = logging.getLogger(__name__)
 
 # Message tokens used to infer an HTTP status when the provider SDK does not
 # expose one (e.g. google-genai, or OpenAI/Anthropic transport errors).
-_AUTH_HINTS: tuple[str, ...] = ("401", "403", "permission", "unauthenticated", "unauthorized")
+_AUTH_HINTS: tuple[str, ...] = (
+	"401", "403", "permission", "unauthenticated", "unauthorized",
+	"api key", "api_key", "credential", "credentials", "no api key",
+)
 _RATE_HINTS: tuple[str, ...] = ("429", "quota", "rate limit", "resource_exhausted", "rate_limit")
 
 
@@ -72,12 +75,12 @@ class ExceptionHandler:
 		details = _provider_error_details(exc, status, body)
 
 		if status in (401, 403):
-			return AuthenticationException(message=f"{provider} auth failed ({status})", details=details)
+			return AuthenticationException(message=f"{provider} auth failed ({status}): {exc}", details=details)
 		if status == 429:
-			return RateLimitException(message=f"{provider} rate limit / quota exceeded", details=details)
+			return RateLimitException(message=f"{provider} rate limit / quota exceeded: {exc}", details=details)
 		if status is None:
 			return LLMGatewayException(message=f"{provider} gateway error: {exc}", details=details)
-		return LLMGatewayException(message=f"{provider} API error ({status})", details=details)
+		return LLMGatewayException(message=f"{provider} API error ({status}): {exc}", details=details)
 
 	def handle(self, exc: Exception, *, provider: str | None = None) -> LLMErrorResponse:
 		if isinstance(exc, AgentException):
@@ -97,11 +100,16 @@ class ExceptionHandler:
 				details=exc.details,
 			)
 
+		# Unexpected (non-domain) exception: classify it so the real cause and a
+		# meaningful error_code/status surface to the caller instead of a generic
+		# "Internal agent error". The full traceback is logged above for debugging.
 		self.logger.exception("Unhandled error provider=%s: %s", provider, exc)
+		classified = self.classify_provider_error(exc, provider=provider or "unknown")
 		return LLMErrorResponse(
-			error_code="internal_error",
-			status=500,
-			reason="Internal error",
-			message="Internal agent error",
+			error_code=classified.error_code,
+			status=classified.status,
+			reason=classified.reason,
+			message=classified.message,
 			provider=provider,
+			details=classified.details,
 		)

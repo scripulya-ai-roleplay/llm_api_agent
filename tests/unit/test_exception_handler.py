@@ -59,13 +59,25 @@ class TestExceptionHandler:
 		assert response.reason == "Internal agent error"
 		assert response.message == "oops"
 
-	def test_unexpected_exception_maps_to_internal_error(self, handler):
+	def test_unexpected_exception_surfaces_real_cause(self, handler):
+		# A non-domain exception must surface its real message/code (here a generic
+		# gateway error) instead of being masked as a generic "Internal agent error".
 		response = handler.handle(RuntimeError("kaboom"), provider="google")
 
-		assert response.error_code == "internal_error"
-		assert response.status == 500
-		assert response.reason == "Internal error"
-		assert response.message == "Internal agent error"
+		assert response.error_code == "model_is_inaccessible"
+		assert response.status == 503
+		assert response.reason == "Model is inaccessible"
+		assert response.message == "google gateway error: kaboom"
+		assert response.provider == "google"
+
+	def test_missing_api_key_surfaces_as_auth_error(self, handler):
+		# The google-genai SDK raises a ValueError (no HTTP status) when the API key
+		# is empty; it must be classified as an auth failure, not hidden.
+		response = handler.handle(ValueError("No API key was provided"), provider="google")
+
+		assert response.error_code == "provider_auth_failed"
+		assert response.status == 401
+		assert "No API key was provided" in response.message
 		assert response.provider == "google"
 
 
@@ -74,10 +86,10 @@ class TestClassifyProviderError:
 	@pytest.mark.parametrize(
 		("status", "expected", "message"),
 		[
-			(401, AuthenticationException, "DeepSeek auth failed (401)"),
-			(403, AuthenticationException, "DeepSeek auth failed (403)"),
-			(429, RateLimitException, "DeepSeek rate limit / quota exceeded"),
-			(500, LLMGatewayException, "DeepSeek API error (500)"),
+			(401, AuthenticationException, "DeepSeek auth failed (401): boom"),
+			(403, AuthenticationException, "DeepSeek auth failed (403): boom"),
+			(429, RateLimitException, "DeepSeek rate limit / quota exceeded: boom"),
+			(500, LLMGatewayException, "DeepSeek API error (500): boom"),
 		],
 	)
 	def test_known_status_maps_to_exception(self, status, expected, message):
@@ -93,6 +105,7 @@ class TestClassifyProviderError:
 		[
 			("401 Permission denied", AuthenticationException),
 			("403 Forbidden", AuthenticationException),
+			("No API key was provided", AuthenticationException),
 			("429 resource_exhausted", RateLimitException),
 			("quota exceeded", RateLimitException),
 		],
