@@ -36,6 +36,7 @@ class LLMModelType(StrEnum):
 	gemini_pro = "gemini-2.5-pro"
 
 	# Z.ai (GLM, OpenAI-compatible)
+	glm_5_2 = "glm-5.2"
 	glm_4_6 = "glm-4.6"
 	glm_4_5 = "glm-4.5"
 
@@ -52,6 +53,7 @@ MODEL_PROVIDER_MAP: dict[LLMModelType, LLMProvider] = {
 	LLMModelType.claude_haiku: LLMProvider.ANTHROPIC,
 	LLMModelType.gemini_flash_preview: LLMProvider.GOOGLE,
 	LLMModelType.gemini_pro: LLMProvider.GOOGLE,
+	LLMModelType.glm_5_2: LLMProvider.ZAI,
 	LLMModelType.glm_4_6: LLMProvider.ZAI,
 	LLMModelType.glm_4_5: LLMProvider.ZAI,
 	LLMModelType.deepseek_chat: LLMProvider.DEEPSEEK,
