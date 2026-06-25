@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 from src.domain.models import ChatRoles, LLMModelType, LLMProvider
+from src.domain.chat_settings import ChatSettings
 
 
 # --- Shared DTOs ---------------------------------------------------------
@@ -40,6 +41,7 @@ class LLMRequest(BaseModel):
 
 	message: UserMessageDTO
 	history: list[UserMessageDTO] = []
+	chat_settings: ChatSettings | None = None
 
 
 class LLMErrorResponse(BaseModel):
@@ -83,6 +85,7 @@ class ILLMProviderGateway(abc.ABC):
 		system_prompt: str,
 		user_message: str,
 		history: list[UserMessageDTO],
+		chat_settings: ChatSettings | None = None,
 	) -> LLMResponse: ...
 
 

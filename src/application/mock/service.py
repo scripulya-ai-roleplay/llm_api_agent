@@ -18,6 +18,7 @@ class MockService(ILLMProviderService):
 			system_prompt="",
 			user_message=request.message.message,
 			history=request.history,
+			chat_settings=request.chat_settings,
 		)
 		return UserMessageDTO(
 			chat_id=request.message.chat_id,
