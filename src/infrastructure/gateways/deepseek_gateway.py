@@ -6,6 +6,7 @@ from openai import APIError, AsyncOpenAI
 
 from src.application.ports import ILLMProviderGateway, LLMResponse, UserMessageDTO
 from src.conf import settings
+from src.domain.chat_settings import ChatSettings, resolve_max_tokens, resolve_temperature
 from src.domain.models import LLMModelType, LLMProvider
 from src.infrastructure.exception_handler import ExceptionHandler
 from src.infrastructure.exceptions import ContentSafetyException
@@ -27,6 +28,7 @@ class DeepSeekGateway(ILLMProviderGateway):
 		system_prompt: str,
 		user_message: str,
 		history: list[UserMessageDTO],
+		chat_settings: ChatSettings | None = None,
 	) -> LLMResponse:
 		if self._client is None:
 			self._client = AsyncOpenAI(api_key=settings.DEEPSEEK_API_KEY, base_url=settings.DEEPSEEK_BASE_URL)
@@ -35,7 +37,8 @@ class DeepSeekGateway(ILLMProviderGateway):
 			resp = await self._client.chat.completions.create(
 				model=model.value,
 				messages=messages,
-				temperature=settings.LLM_TEMPERATURE,
+				temperature=resolve_temperature(chat_settings),
+				max_tokens=resolve_max_tokens(chat_settings),
 			)
 		except APIError as e:
 			raise ExceptionHandler.classify_provider_error(

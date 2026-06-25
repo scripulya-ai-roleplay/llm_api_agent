@@ -19,6 +19,7 @@ class AnthropicService(ILLMProviderService):
 			system_prompt=settings.SYSTEM_PROMPT,
 			user_message=request.message.message,
 			history=request.history,
+			chat_settings=request.chat_settings,
 		)
 		logger.info(
 			"anthropic ok model=%s usage=%s chat_id=%s",

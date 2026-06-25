@@ -3,6 +3,7 @@ from logging import Logger
 from typing import ClassVar
 
 from src.application.ports import ILLMProviderGateway, LLMResponse, UserMessageDTO
+from src.domain.chat_settings import ChatSettings
 from src.domain.models import LLMModelType, LLMProvider
 
 
@@ -20,6 +21,7 @@ class MockGateway(ILLMProviderGateway):
 		system_prompt: str,  # noqa: ARG002 - unused by the mock
 		user_message: str,
 		history: list[UserMessageDTO],  # noqa: ARG002 - unused by the mock
+		chat_settings: ChatSettings | None = None,  # noqa: ARG002 - unused by the mock
 	) -> LLMResponse:
 		self.logger.info("Mock gateway received: %s", user_message)
 		return LLMResponse(
