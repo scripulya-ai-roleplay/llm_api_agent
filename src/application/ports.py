@@ -42,6 +42,7 @@ class LLMRequest(BaseModel):
 	message: UserMessageDTO
 	history: list[UserMessageDTO] = []
 	chat_settings: ChatSettings | None = None
+	system_prompt: str = ""
 
 
 class LLMErrorResponse(BaseModel):
