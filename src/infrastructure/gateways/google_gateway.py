@@ -7,6 +7,7 @@ from google.genai import types
 
 from src.application.ports import ILLMProviderGateway, LLMResponse, UserMessageDTO
 from src.conf import settings
+from src.domain.chat_settings import ChatSettings, resolve_max_tokens, resolve_temperature
 from src.domain.models import ChatRoles, LLMModelType, LLMProvider
 from src.infrastructure.exception_handler import ExceptionHandler
 from src.infrastructure.exceptions import ContentSafetyException
@@ -36,12 +37,14 @@ class GoogleGateway(ILLMProviderGateway):
 		system_prompt: str,
 		user_message: str,
 		history: list[UserMessageDTO],
+		chat_settings: ChatSettings | None = None,
 	) -> LLMResponse:
 		if self._client is None:
 			self._client = genai.Client(api_key=settings.GEMINI_API_KEY)
 		config = types.GenerateContentConfig(
 			system_instruction=system_prompt,
-			temperature=settings.LLM_TEMPERATURE,
+			temperature=resolve_temperature(chat_settings),
+			max_output_tokens=resolve_max_tokens(chat_settings),
 		)
 		try:
 			resp = await self._client.aio.models.generate_content(

@@ -4,7 +4,6 @@ from uuid import uuid4
 
 from src.application.anthropic.service import AnthropicService
 from src.application.ports import LLMRequest, LLMResponse, UserMessageDTO
-from src.conf import settings
 from src.domain.models import ChatRoles, LLMModelType
 from src.infrastructure.gateways.anthropic_gateway import AnthropicGateway
 
@@ -40,6 +39,7 @@ class TestAnthropicService:
 					chat_id=uuid4(), message="earlier", llm_model=LLMModelType.claude_sonnet, role=ChatRoles.MODEL
 				),
 			],
+			system_prompt="custom-prompt",
 		)
 
 	@pytest.mark.asyncio
@@ -54,6 +54,6 @@ class TestAnthropicService:
 		gateway.generate.assert_awaited_once()
 		kwargs = gateway.generate.call_args.kwargs
 		assert kwargs["model"] == LLMModelType.claude_sonnet
-		assert kwargs["system_prompt"] == settings.SYSTEM_PROMPT
+		assert kwargs["system_prompt"] == "custom-prompt"
 		assert kwargs["user_message"] == "hi"
 		assert kwargs["history"] == llm_request.history

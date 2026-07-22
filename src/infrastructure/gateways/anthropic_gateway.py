@@ -6,6 +6,7 @@ from anthropic import APIError, AsyncAnthropic
 
 from src.application.ports import ILLMProviderGateway, LLMResponse, UserMessageDTO
 from src.conf import settings
+from src.domain.chat_settings import ChatSettings, resolve_max_tokens, resolve_temperature
 from src.domain.models import ChatRoles, LLMModelType, LLMProvider
 from src.infrastructure.exception_handler import ExceptionHandler
 from src.infrastructure.exceptions import ContentSafetyException
@@ -38,6 +39,7 @@ class AnthropicGateway(ILLMProviderGateway):
 		system_prompt: str,
 		user_message: str,
 		history: list[UserMessageDTO],
+		chat_settings: ChatSettings | None = None,
 	) -> LLMResponse:
 		if self._client is None:
 			self._client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
@@ -46,7 +48,8 @@ class AnthropicGateway(ILLMProviderGateway):
 				model=model.value,
 				system=system_prompt,
 				messages=_to_anthropic_messages(user_message, history),
-				max_tokens=settings.LLM_MAX_TOKENS,
+				max_tokens=resolve_max_tokens(chat_settings),
+				temperature=resolve_temperature(chat_settings),
 			)
 		except APIError as e:
 			raise ExceptionHandler.classify_provider_error(

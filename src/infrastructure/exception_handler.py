@@ -16,8 +16,16 @@ logger = logging.getLogger(__name__)
 # Message tokens used to infer an HTTP status when the provider SDK does not
 # expose one (e.g. google-genai, or OpenAI/Anthropic transport errors).
 _AUTH_HINTS: tuple[str, ...] = (
-	"401", "403", "permission", "unauthenticated", "unauthorized",
-	"api key", "api_key", "credential", "credentials", "no api key",
+	"401",
+	"403",
+	"permission",
+	"unauthenticated",
+	"unauthorized",
+	"api key",
+	"api_key",
+	"credential",
+	"credentials",
+	"no api key",
 )
 _RATE_HINTS: tuple[str, ...] = ("429", "quota", "rate limit", "resource_exhausted", "rate_limit")
 

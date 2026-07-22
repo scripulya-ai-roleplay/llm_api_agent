@@ -15,9 +15,10 @@ class MockService(ILLMProviderService):
 	async def generate(self, request: LLMRequest) -> UserMessageDTO:
 		resp: LLMResponse = await self._gateway.generate(
 			model=request.message.llm_model,
-			system_prompt="",
+			system_prompt=request.system_prompt,
 			user_message=request.message.message,
 			history=request.history,
+			chat_settings=request.chat_settings,
 		)
 		return UserMessageDTO(
 			chat_id=request.message.chat_id,
