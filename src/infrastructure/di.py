@@ -1,5 +1,7 @@
 import logging
+from typing import AsyncGenerator
 
+import redis.asyncio
 from dishka import Provider, Scope, make_async_container, provide
 
 from src.application.agent.service import AgentService
@@ -9,6 +11,7 @@ from src.application.google.service import GoogleService
 from src.application.mock.service import MockService
 from src.application.ports import IAgentService
 from src.application.zai.service import ZaiService
+from src.conf import settings
 from src.domain.models import LLMProvider
 from src.infrastructure.exception_handler import ExceptionHandler
 from src.infrastructure.gateways.anthropic_gateway import AnthropicGateway
@@ -71,6 +74,15 @@ class ServiceProvider(Provider):
 
 
 class InfrastructureProvider(Provider):
+	@provide(scope=Scope.APP)
+	async def redis_client(self) -> AsyncGenerator[redis.asyncio.Redis, None]:
+		# Yielded so dishka closes the connection pool on container shutdown.
+		client = redis.asyncio.from_url(settings.REDIS_URL, decode_responses=True)
+		try:
+			yield client
+		finally:
+			await client.aclose()
+
 	@provide(scope=Scope.APP)
 	def exception_handler(self) -> ExceptionHandler:
 		return ExceptionHandler(logger=logger)
