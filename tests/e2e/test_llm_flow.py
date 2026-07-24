@@ -1,4 +1,5 @@
 import asyncio
+import json
 from uuid import uuid4
 
 import pytest
@@ -237,3 +238,78 @@ async def test_generation_timeout_returns_structured_error(monkeypatch):
 	assert err.error_code == "generation_timeout"
 	assert err.status == 504
 	assert "0.1s" in err.message
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_mock_request_streams_tokens_then_terminal_frame(monkeypatch):
+	"""Per-token frames and a terminal 'done' frame are published to the
+	gen:{request_id}:tokens Redis channel, keyed by the backend's correlation_id.
+
+	A fake Redis (no live instance) records publishes; the heartbeat/mark_done paths
+	are neutralized as in the other e2e tests.
+	"""
+	published: list[tuple[str, dict]] = []
+
+	class _FakeRedis:
+		async def publish(self, channel, payload):
+			published.append((channel, json.loads(payload)))
+
+		async def aclose(self):
+			return None
+
+	monkeypatch.setattr("redis.asyncio.from_url", lambda *args, **kwargs: _FakeRedis())
+
+	class _NoopHeartbeat:
+		def __init__(self, *args, **kwargs):
+			pass
+
+		async def __aenter__(self):
+			return self
+
+		async def __aexit__(self, *exc):
+			return False
+
+	async def _noop_mark_done(redis_client, request_id):  # noqa: ANN001, ARG001
+		return None
+
+	monkeypatch.setattr("src.controllers.llm.Heartbeat", _NoopHeartbeat)
+	monkeypatch.setattr("src.controllers.llm.mark_done", _noop_mark_done)
+
+	broker = create_broker()
+	broker.include_router(llm_router)
+
+	captured: list[LLMResult] = []
+
+	@broker.subscriber(settings.LLM_RESULT_QUEUE)
+	async def spy(result: LLMResult) -> None:
+		captured.append(result)
+
+	container = create_container()
+	setup_dishka(container=container, broker=broker, auto_inject=True)
+
+	chat_id = uuid4()
+	request = LLMRequest(
+		message=UserMessageDTO(
+			chat_id=chat_id,
+			message="hello agent",
+			llm_model=LLMModelType.testing_mock,
+			role=ChatRoles.USER,
+		)
+	)
+
+	async with TestRabbitBroker(broker) as tb:
+		await tb.publish(request.model_dump(mode="json"), settings.LLM_REQUEST_QUEUE, correlation_id="rid-stream")
+
+	# All frames land on the request-scoped channel.
+	assert {channel for channel, _ in published} == {"gen:rid-stream:tokens"}
+
+	token_text = "".join(frame["text"] for _, frame in published if frame.get("type") == "token")
+	assert token_text == "Mock response for: hello agent"
+
+	# Exactly one terminal frame, and it follows the tokens.
+	terminals = [frame for _, frame in published if frame.get("type") in ("done", "error")]
+	assert terminals == [{"type": "done"}]
+	# Generation still completed normally via the result queue.
+	assert len(captured) == 1
+	assert captured[0].error is None

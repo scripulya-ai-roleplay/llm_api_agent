@@ -41,7 +41,7 @@ class TestAgentService:
 		for model, provider in cases.items():
 			req = _request(model)
 			await agent.handle(req)
-			services[provider].generate.assert_awaited_once_with(req)
+			services[provider].generate.assert_awaited_once_with(req, on_token=None)
 
 	@pytest.mark.asyncio
 	async def test_unknown_model_raises(self, agent):

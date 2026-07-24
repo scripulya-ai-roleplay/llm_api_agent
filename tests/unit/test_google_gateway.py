@@ -11,7 +11,12 @@ from src.infrastructure.exceptions import AuthenticationException
 from src.infrastructure.gateways.google_gateway import GoogleGateway
 
 
-def _fake_response(text="gemini says hi") -> SimpleNamespace:
+async def _chunk_stream(chunks):
+	for chunk in chunks:
+		yield chunk
+
+
+def _gchunk(text: str | None) -> SimpleNamespace:
 	return SimpleNamespace(
 		text=text,
 		prompt_feedback=SimpleNamespace(block_reason=None),
@@ -19,27 +24,42 @@ def _fake_response(text="gemini says hi") -> SimpleNamespace:
 	)
 
 
+def _stream_client(chunks: list[SimpleNamespace]) -> MagicMock:
+	client = MagicMock()
+	# generate_content_stream is `async def` in the SDK, so it is awaited to get the iterator.
+	client.aio.models.generate_content_stream = AsyncMock(return_value=_chunk_stream(chunks))
+	return client
+
+
 @pytest.mark.unit
 class TestGoogleGateway:
 	@pytest.fixture
 	def gateway(self) -> GoogleGateway:
-		client = MagicMock()
-		client.aio.models.generate_content = AsyncMock(return_value=_fake_response())
-		return GoogleGateway(logger=logging.getLogger(), _client=client)
+		return GoogleGateway(
+			logger=logging.getLogger(), _client=_stream_client([_gchunk("gemini "), _gchunk("says hi")])
+		)
 
 	@pytest.mark.asyncio
-	async def test_success_extracts_text_and_usage(self, gateway):
+	async def test_success_streams_tokens_and_extracts_text_and_usage(self, gateway):
+		seen: list[str] = []
+
+		async def collect(text: str) -> None:
+			seen.append(text)
+
 		result = await gateway.generate(
 			model=LLMModelType.gemini_flash_preview,
 			system_prompt="sys",
 			user_message="hi",
 			history=[],
+			on_token=collect,
 		)
+
 		assert result.text == "gemini says hi"
 		assert result.provider == "google"
 		assert result.usage == {"prompt_token_count": 3, "candidates_token_count": 4}
+		assert seen == ["gemini ", "says hi"]
 
-		kwargs = gateway._client.aio.models.generate_content.call_args.kwargs
+		kwargs = gateway._client.aio.models.generate_content_stream.call_args.kwargs
 		assert kwargs["model"] == "gemini-3-flash-preview"
 		# history empty -> contents is just the user message
 		assert kwargs["contents"][-1] == "hi"
@@ -60,14 +80,14 @@ class TestGoogleGateway:
 			user_message="u2",
 			history=history,
 		)
-		contents = gateway._client.aio.models.generate_content.call_args.kwargs["contents"]
+		contents = gateway._client.aio.models.generate_content_stream.call_args.kwargs["contents"]
 		# two Content objects from history + the final user string
 		assert len(contents) == 3
 		assert contents[-1] == "u2"
 
 	@pytest.mark.asyncio
 	async def test_auth_error_maps_to_authentication_exception(self, gateway):
-		gateway._client.aio.models.generate_content.side_effect = Exception("401 Permission denied")
+		gateway._client.aio.models.generate_content_stream.side_effect = Exception("401 Permission denied")
 		with pytest.raises(AuthenticationException):
 			await gateway.generate(
 				model=LLMModelType.gemini_flash_preview,

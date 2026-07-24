@@ -20,6 +20,12 @@ def _done_key(request_id: str) -> str:
 	return f"gen:{request_id}:done"
 
 
+def tokens_key(request_id: str) -> str:
+	# Shared CONTRACT with scripulya_ai (it subscribes here to relay tokens to SSE).
+	# The agent publishes {"type":"token"|"done"|"error", ...} frames as JSON strings.
+	return f"gen:{request_id}:tokens"
+
+
 class Heartbeat:
 	"""Best-effort: Redis errors are swallowed so an outage never breaks generation.
 	A falsy request_id (the backend omitted a correlation_id) disables the heartbeat."""

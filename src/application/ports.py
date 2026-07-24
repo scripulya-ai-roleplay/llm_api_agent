@@ -1,4 +1,5 @@
 import abc
+from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -87,6 +88,7 @@ class ILLMProviderGateway(abc.ABC):
 		user_message: str,
 		history: list[UserMessageDTO],
 		chat_settings: ChatSettings | None = None,
+		on_token: Callable[[str], Awaitable[None]] | None = None,
 	) -> LLMResponse: ...
 
 
@@ -100,7 +102,9 @@ class ILLMProviderService(abc.ABC):
 	"""
 
 	@abc.abstractmethod
-	async def generate(self, request: LLMRequest) -> UserMessageDTO: ...
+	async def generate(
+		self, request: LLMRequest, on_token: Callable[[str], Awaitable[None]] | None = None
+	) -> UserMessageDTO: ...
 
 
 # --- Dispatcher port ----------------------------------------------------
@@ -112,4 +116,6 @@ class IAgentService(abc.ABC):
 	"""
 
 	@abc.abstractmethod
-	async def handle(self, request: LLMRequest) -> UserMessageDTO: ...
+	async def handle(
+		self, request: LLMRequest, on_token: Callable[[str], Awaitable[None]] | None = None
+	) -> UserMessageDTO: ...

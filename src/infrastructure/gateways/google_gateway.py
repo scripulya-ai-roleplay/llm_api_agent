@@ -11,6 +11,7 @@ from src.domain.chat_settings import ChatSettings, resolve_max_tokens, resolve_t
 from src.domain.models import ChatRoles, LLMModelType, LLMProvider
 from src.infrastructure.exception_handler import ExceptionHandler
 from src.infrastructure.exceptions import ContentSafetyException
+from src.infrastructure.gateways._streaming import emit_token
 
 
 def _to_gemini_contents(history: list[UserMessageDTO]) -> list[types.Content]:
@@ -38,6 +39,7 @@ class GoogleGateway(ILLMProviderGateway):
 		user_message: str,
 		history: list[UserMessageDTO],
 		chat_settings: ChatSettings | None = None,
+		on_token=None,
 	) -> LLMResponse:
 		if self._client is None:
 			self._client = genai.Client(api_key=settings.GEMINI_API_KEY)
@@ -46,23 +48,33 @@ class GoogleGateway(ILLMProviderGateway):
 			temperature=resolve_temperature(chat_settings),
 			max_output_tokens=resolve_max_tokens(chat_settings),
 		)
+		parts: list[str] = []
+		last = None
 		try:
-			resp = await self._client.aio.models.generate_content(
+			# generate_content_stream is `async def`, so it must be awaited to obtain
+			# the async iterator (the await performs the HTTP connection setup).
+			stream = await self._client.aio.models.generate_content_stream(
 				model=model.value,
 				contents=[*_to_gemini_contents(history), user_message],
 				config=config,
 			)
+			async for chunk in stream:
+				last = chunk
+				text = getattr(chunk, "text", None)
+				if text:
+					parts.append(text)
+					await emit_token(on_token, text)
 		except Exception as e:  # google-genai raises ClientError / ServerError
 			raise ExceptionHandler.classify_provider_error(e, provider="Google") from e
 
-		block_reason = getattr(getattr(resp, "prompt_feedback", None), "block_reason", None)
+		block_reason = getattr(getattr(last, "prompt_feedback", None), "block_reason", None) if last else None
 		if block_reason:
 			raise ContentSafetyException(
 				message=f"Google blocked the prompt: {block_reason}",
 				details={"block_reason": str(block_reason)},
 			)
 
-		usage_meta = getattr(resp, "usage_metadata", None)
+		usage_meta = getattr(last, "usage_metadata", None) if last else None
 		usage = (
 			{
 				"prompt_token_count": getattr(usage_meta, "prompt_token_count", 0),
@@ -73,7 +85,7 @@ class GoogleGateway(ILLMProviderGateway):
 		)
 
 		return LLMResponse(
-			text=getattr(resp, "text", None) or "",
+			text="".join(parts),
 			model=model,
 			usage=usage,
 			provider=LLMProvider.GOOGLE.value,
