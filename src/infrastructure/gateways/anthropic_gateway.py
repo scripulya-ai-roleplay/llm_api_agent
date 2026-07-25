@@ -10,6 +10,7 @@ from src.domain.chat_settings import ChatSettings, resolve_max_tokens, resolve_t
 from src.domain.models import ChatRoles, LLMModelType, LLMProvider
 from src.infrastructure.exception_handler import ExceptionHandler
 from src.infrastructure.exceptions import ContentSafetyException
+from src.infrastructure.gateways._streaming import emit_token
 
 
 def _to_anthropic_messages(user_message: str, history: list[UserMessageDTO]) -> list[dict]:
@@ -40,17 +41,22 @@ class AnthropicGateway(ILLMProviderGateway):
 		user_message: str,
 		history: list[UserMessageDTO],
 		chat_settings: ChatSettings | None = None,
+		on_token=None,
 	) -> LLMResponse:
 		if self._client is None:
 			self._client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 		try:
-			resp = await self._client.messages.create(
+			async with self._client.messages.stream(
 				model=model.value,
 				system=system_prompt,
 				messages=_to_anthropic_messages(user_message, history),
 				max_tokens=resolve_max_tokens(chat_settings),
 				temperature=resolve_temperature(chat_settings),
-			)
+			) as stream:
+				async for delta in stream.text_stream:
+					if delta:
+						await emit_token(on_token, delta)
+				final = await stream.get_final_message()
 		except APIError as e:
 			raise ExceptionHandler.classify_provider_error(
 				e,
@@ -59,16 +65,16 @@ class AnthropicGateway(ILLMProviderGateway):
 				body=getattr(e, "body", None),
 			) from e
 
-		stop_reason = getattr(resp, "stop_reason", None)
+		stop_reason = getattr(final, "stop_reason", None)
 		if stop_reason == "content_filtered":
 			raise ContentSafetyException(
 				message="Anthropic filtered the response",
 				details={"stop_reason": stop_reason},
 			)
 
-		text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+		text = "".join(b.text for b in final.content if getattr(b, "type", None) == "text")
 		usage = {
-			"input_tokens": resp.usage.input_tokens,
-			"output_tokens": resp.usage.output_tokens,
+			"input_tokens": final.usage.input_tokens,
+			"output_tokens": final.usage.output_tokens,
 		}
 		return LLMResponse(text=text, model=model, usage=usage, provider=LLMProvider.ANTHROPIC.value)

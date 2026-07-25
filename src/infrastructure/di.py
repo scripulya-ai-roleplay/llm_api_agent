@@ -1,5 +1,5 @@
 import logging
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import redis.asyncio
 from dishka import Provider, Scope, make_async_container, provide
@@ -75,7 +75,7 @@ class ServiceProvider(Provider):
 
 class InfrastructureProvider(Provider):
 	@provide(scope=Scope.APP)
-	async def redis_client(self) -> AsyncGenerator[redis.asyncio.Redis, None]:
+	async def redis_client(self) -> AsyncGenerator[redis.asyncio.Redis]:
 		# Yielded so dishka closes the connection pool on container shutdown.
 		client = redis.asyncio.from_url(settings.REDIS_URL, decode_responses=True)
 		try:

@@ -14,7 +14,7 @@ class AgentService(IAgentService):
 
 	provider_services: dict[LLMProvider, ILLMProviderService]
 
-	async def handle(self, request: LLMRequest) -> UserMessageDTO:
+	async def handle(self, request: LLMRequest, on_token=None) -> UserMessageDTO:
 		model = request.message.llm_model
 		provider = MODEL_PROVIDER_MAP.get(model)
 		if provider is None:
@@ -29,4 +29,4 @@ class AgentService(IAgentService):
 				details={"provider": str(provider)},
 			)
 		logger.info("Dispatching model=%s -> provider=%s", model, provider)
-		return await service.generate(request)
+		return await service.generate(request, on_token=on_token)

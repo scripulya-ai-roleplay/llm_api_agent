@@ -54,10 +54,10 @@ class ExceptionHandler:
 
 	Two responsibilities:
 	- `classify_provider_error`: translate a raw provider SDK error into the right
-	  domain `AgentException` (centralizing the status -> exception mapping shared
-	  by every gateway).
+	domain `AgentException` (centralizing the status -> exception mapping shared
+	by every gateway).
 	- `handle`: serialize any exception into the `LLMErrorResponse` payload
-	  published to RabbitMQ.
+	published to RabbitMQ.
 	"""
 
 	logger: Logger

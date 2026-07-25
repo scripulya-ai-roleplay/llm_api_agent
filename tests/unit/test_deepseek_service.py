@@ -1,6 +1,7 @@
-import pytest
 from unittest.mock import AsyncMock
 from uuid import uuid4
+
+import pytest
 
 from src.application.deepseek.service import DeepSeekService
 from src.application.ports import LLMRequest, LLMResponse, UserMessageDTO
