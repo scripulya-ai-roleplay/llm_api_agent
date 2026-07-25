@@ -16,8 +16,6 @@ from src.infrastructure.gateways.zai_gateway import _to_openai_messages
 
 @dataclass
 class DeepSeekGateway(ILLMProviderGateway):
-	"""DeepSeek — OpenAI-compatible API."""
-
 	provider: ClassVar[LLMProvider] = LLMProvider.DEEPSEEK
 
 	logger: Logger
@@ -37,6 +35,7 @@ class DeepSeekGateway(ILLMProviderGateway):
 		messages = _to_openai_messages(system_prompt, user_message, history)
 		parts: list[str] = []
 		finish_reason = None
+		usage = None
 		try:
 			stream = await self._client.chat.completions.create(
 				model=model.value,
@@ -44,8 +43,15 @@ class DeepSeekGateway(ILLMProviderGateway):
 				temperature=resolve_temperature(chat_settings),
 				max_tokens=resolve_max_tokens(chat_settings),
 				stream=True,
+				stream_options={"include_usage": True},
 			)
 			async for chunk in stream:
+				if chunk.usage is not None:
+					usage = {
+						"prompt_tokens": chunk.usage.prompt_tokens,
+						"completion_tokens": chunk.usage.completion_tokens,
+						"total_tokens": chunk.usage.total_tokens,
+					}
 				if not chunk.choices:
 					continue
 				choice = chunk.choices[0]
@@ -69,6 +75,6 @@ class DeepSeekGateway(ILLMProviderGateway):
 		return LLMResponse(
 			text="".join(parts),
 			model=model,
-			usage=None,
+			usage=usage,
 			provider=LLMProvider.DEEPSEEK.value,
 		)
