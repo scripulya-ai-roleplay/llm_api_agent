@@ -19,8 +19,8 @@ from src.domain.chat_settings import (
 	ReasoningEffort,
 	ResponseLength,
 	TemperatureSettings,
-	TokenLimit,
 	Toggle,
+	TokenLimit,
 )
 from src.domain.models import ChatRoles, LLMModelType
 from src.infrastructure.di import create_container

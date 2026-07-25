@@ -1,6 +1,7 @@
-import pytest
 from unittest.mock import AsyncMock
 from uuid import uuid4
+
+import pytest
 
 from src.application.agent.service import AgentService
 from src.application.ports import ILLMProviderService, LLMRequest, UserMessageDTO

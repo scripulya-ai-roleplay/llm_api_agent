@@ -4,9 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from src.domain.models import ChatRoles, LLMModelType, LLMProvider
 from src.domain.chat_settings import ChatSettings
-
+from src.domain.models import ChatRoles, LLMModelType, LLMProvider
 
 # --- Shared DTOs ---------------------------------------------------------
 
