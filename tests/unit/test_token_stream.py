@@ -27,6 +27,28 @@ class TestTokenStream:
 		assert all(p["type"] == "token" for p in published)
 
 	@pytest.mark.asyncio
+	async def test_emit_thinking_publishes_thinking_frames_interleaved(self):
+		published: list[dict] = []
+
+		class _Redis:
+			async def publish(self, channel, payload):
+				published.append(json.loads(payload))
+
+		async with TokenStream(_Redis(), "gen:rid:tokens") as ts:
+			await ts.emit_thinking("hmm")
+			await ts.emit("answer")
+			await ts.emit_thinking("...")
+
+		# Kinds are preserved and a single monotonic seq orders all frames, token
+		# and thinking alike, so the relay can interleave them in emission order.
+		assert [(p["type"], p["text"]) for p in published] == [
+			("thinking", "hmm"),
+			("token", "answer"),
+			("thinking", "..."),
+		]
+		assert [p["seq"] for p in published] == [1, 2, 3]
+
+	@pytest.mark.asyncio
 	async def test_flushes_every_token_before_exit(self):
 		# The drain publishes slower than tokens are enqueued; __aexit__ must wait
 		# for it to catch up so no token is left unpublished (and the caller's

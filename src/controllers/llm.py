@@ -56,7 +56,9 @@ async def handle_llm_request(
 		async with Heartbeat(redis_client, correlation_id):
 			async with TokenStream(redis_client, channel) as tokens:
 				async with asyncio.timeout(settings.LLM_GENERATION_TIMEOUT_SECONDS):
-					reply: UserMessageDTO = await svc.handle(msg, on_token=tokens.emit)
+					reply: UserMessageDTO = await svc.handle(
+						msg, on_token=tokens.emit, on_thinking=tokens.emit_thinking
+					)
 		logger.info("LLM ok chat_id=%s", reply.chat_id)
 		return LLMResult(chat_id=msg.message.chat_id, message=reply)
 	except TimeoutError:
