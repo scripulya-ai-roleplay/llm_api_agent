@@ -1,6 +1,7 @@
-import pytest
 from unittest.mock import AsyncMock
 from uuid import uuid4
+
+import pytest
 
 from src.application.agent.service import AgentService
 from src.application.ports import ILLMProviderService, LLMRequest, UserMessageDTO
@@ -41,7 +42,7 @@ class TestAgentService:
 		for model, provider in cases.items():
 			req = _request(model)
 			await agent.handle(req)
-			services[provider].generate.assert_awaited_once_with(req)
+			services[provider].generate.assert_awaited_once_with(req, on_token=None, on_thinking=None)
 
 	@pytest.mark.asyncio
 	async def test_unknown_model_raises(self, agent):

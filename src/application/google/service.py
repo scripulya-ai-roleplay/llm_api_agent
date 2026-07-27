@@ -12,13 +12,15 @@ logger = logging.getLogger(__name__)
 class GoogleService(ILLMProviderService):
 	_gateway: GoogleGateway
 
-	async def generate(self, request: LLMRequest) -> UserMessageDTO:
+	async def generate(self, request: LLMRequest, on_token=None, on_thinking=None) -> UserMessageDTO:
 		resp: LLMResponse = await self._gateway.generate(
 			model=request.message.llm_model,
 			system_prompt=request.system_prompt,
 			user_message=request.message.message,
 			history=request.history,
 			chat_settings=request.chat_settings,
+			on_token=on_token,
+			on_thinking=on_thinking,
 		)
 		logger.info("google ok model=%s usage=%s chat_id=%s", resp.model, resp.usage, request.message.chat_id)
 		return UserMessageDTO(
@@ -26,4 +28,5 @@ class GoogleService(ILLMProviderService):
 			message=resp.text,
 			llm_model=request.message.llm_model,
 			role=ChatRoles.MODEL,
+			reasoning=resp.reasoning,
 		)

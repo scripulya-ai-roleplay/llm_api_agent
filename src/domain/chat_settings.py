@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -77,7 +76,7 @@ class ChatSettings(BaseModel):
 	reasoning: Toggle
 	reasoningEffort: ReasoningEffort
 	aiMediaPicker: Toggle
-	contextLimitOverride: Optional[int] = Field(
+	contextLimitOverride: int | None = Field(
 		default=None,
 		ge=1,
 		le=1048576,
@@ -111,3 +110,35 @@ def resolve_max_tokens(chat_settings: ChatSettings | None) -> int:
 	if chat_settings and chat_settings.responseTokenLimit is not None:
 		return _TOKEN_LIMIT.get(chat_settings.responseTokenLimit, settings.LLM_MAX_TOKENS)
 	return settings.LLM_MAX_TOKENS
+
+
+def reasoning_enabled(chat_settings: ChatSettings | None) -> bool:
+	"""Whether the chat has opted into reasoning (extended thinking).
+
+	A reasoner model like deepseek-reasoner thinks unconditionally; this flag is
+	the explicit opt-in for providers where thinking is a billable, latency-adding
+	mode (Anthropic)."""
+	return bool(chat_settings and chat_settings.reasoning == Toggle.ON)
+
+
+_THINKING_BUDGET: dict[ReasoningEffort, int] = {
+	ReasoningEffort.MIN: 1024,
+	ReasoningEffort.LOW: 4096,
+	ReasoningEffort.MID: 8192,
+	ReasoningEffort.HIGH: 16000,
+}
+
+
+def resolve_thinking_budget(chat_settings: ChatSettings | None) -> int | None:
+	"""Concrete thinking budget (tokens) for a provider call when reasoning is on.
+
+	Anthropic requires budget_tokens in [1024, max_tokens). The resolved effort
+	level is clamped down so it always leaves room for the answer under the chat's
+	output cap. Returns None when reasoning is off."""
+	if not reasoning_enabled(chat_settings):
+		return None
+	budget = _THINKING_BUDGET.get(chat_settings.reasoningEffort, 8192)
+	cap = resolve_max_tokens(chat_settings)
+	if budget >= cap:
+		budget = max(1024, cap - 1024)
+	return budget
