@@ -8,6 +8,18 @@ import pytest
 from openai import APIStatusError
 
 from src.application.ports import UserMessageDTO
+from src.domain.chat_settings import (
+	ChatSettings,
+	ControlBehavior,
+	FunctionsSettings,
+	Perspective,
+	Preset,
+	ReasoningEffort,
+	ResponseLength,
+	TemperatureSettings,
+	Toggle,
+	TokenLimit,
+)
 from src.domain.models import ChatRoles, LLMModelType
 from src.infrastructure.exceptions import AuthenticationException
 from src.infrastructure.gateways.zai_gateway import ZaiGateway
@@ -27,6 +39,32 @@ async def _chunk_stream(chunks):
 def _delta(content: str | None, finish_reason: str | None = None) -> SimpleNamespace:
 	return SimpleNamespace(
 		choices=[SimpleNamespace(delta=SimpleNamespace(content=content), finish_reason=finish_reason)]
+	)
+
+
+def _rdelta(
+	reasoning: str | None = None, content: str | None = None, finish_reason: str | None = None
+) -> SimpleNamespace:
+	# delta carries reasoning_content only when the model emits a thinking chunk; plain
+	# answer chunks omit it (so getattr falls back to None, as with the real SDK).
+	delta = SimpleNamespace(content=content)
+	if reasoning is not None:
+		delta.reasoning_content = reasoning
+	return SimpleNamespace(choices=[SimpleNamespace(delta=delta, finish_reason=finish_reason)])
+
+
+def _reasoning_chat_settings() -> ChatSettings:
+	return ChatSettings(
+		aiControlBehavior=ControlBehavior.CONTROL,
+		continueBehavior=ControlBehavior.CONTROL,
+		perspective=Perspective.THIRD_PERSON,
+		temperature=TemperatureSettings(preset=Preset.MID, value=0.7),
+		responseLength=ResponseLength.MEDIUM,
+		responseTokenLimit=TokenLimit.MAX,
+		reasoning=Toggle.ON,
+		reasoningEffort=ReasoningEffort.MID,
+		aiMediaPicker=Toggle.OFF,
+		functions=FunctionsSettings(),
 	)
 
 
@@ -101,3 +139,55 @@ class TestZaiGateway:
 				user_message="hi",
 				history=[],
 			)
+
+	@pytest.mark.asyncio
+	async def test_reasoning_routes_reasoning_content_to_separate_sink(self):
+		# GLM's chain-of-thought arrives as delta.reasoning_content (DeepSeek-compatible);
+		# it must stream via on_thinking and be returned as result.reasoning, while the
+		# answer still streams via on_token. The reasoning toggle also opts into the
+		# `thinking` param via extra_body.
+		chunks = [
+			_rdelta(reasoning="delib"),
+			_rdelta(reasoning="eration"),
+			_rdelta(content="hello "),
+			_rdelta(content="world", finish_reason="stop"),
+		]
+		gateway = ZaiGateway(logger=logging.getLogger(), _client=_stream_client(chunks))
+
+		tokens: list[str] = []
+		thinking: list[str] = []
+
+		async def on_token(text: str) -> None:
+			tokens.append(text)
+
+		async def on_thinking(text: str) -> None:
+			thinking.append(text)
+
+		result = await gateway.generate(
+			model=LLMModelType.glm_4_6,
+			system_prompt="sys",
+			user_message="hi",
+			history=[],
+			chat_settings=_reasoning_chat_settings(),
+			on_token=on_token,
+			on_thinking=on_thinking,
+		)
+
+		assert result.text == "hello world"
+		assert result.reasoning == "deliberation"
+		assert "".join(thinking) == "deliberation"
+		assert "".join(tokens) == "hello world"
+
+		kwargs = gateway._client.chat.completions.create.call_args.kwargs
+		assert kwargs["extra_body"] == {"thinking": {"type": "enabled"}}
+
+	@pytest.mark.asyncio
+	async def test_reasoning_off_omits_thinking_param(self, gateway):
+		await gateway.generate(
+			model=LLMModelType.glm_4_6,
+			system_prompt="sys",
+			user_message="hi",
+			history=[],
+		)
+		kwargs = gateway._client.chat.completions.create.call_args.kwargs
+		assert "extra_body" not in kwargs

@@ -6,11 +6,17 @@ from anthropic import APIError, AsyncAnthropic
 
 from src.application.ports import ILLMProviderGateway, LLMResponse, UserMessageDTO
 from src.conf import settings
-from src.domain.chat_settings import ChatSettings, resolve_max_tokens, resolve_temperature
+from src.domain.chat_settings import (
+	ChatSettings,
+	reasoning_enabled,
+	resolve_max_tokens,
+	resolve_temperature,
+	resolve_thinking_budget,
+)
 from src.domain.models import ChatRoles, LLMModelType, LLMProvider
 from src.infrastructure.exception_handler import ExceptionHandler
 from src.infrastructure.exceptions import ContentSafetyException
-from src.infrastructure.gateways._streaming import emit_token
+from src.infrastructure.gateways._streaming import emit_thinking, emit_token
 
 
 def _to_anthropic_messages(user_message: str, history: list[UserMessageDTO]) -> list[dict]:
@@ -42,20 +48,37 @@ class AnthropicGateway(ILLMProviderGateway):
 		history: list[UserMessageDTO],
 		chat_settings: ChatSettings | None = None,
 		on_token=None,
+		on_thinking=None,
 	) -> LLMResponse:
 		if self._client is None:
 			self._client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+		thinking_on = reasoning_enabled(chat_settings)
+		temperature = resolve_temperature(chat_settings)
+		extra: dict = {}
+		if thinking_on:
+			budget = resolve_thinking_budget(chat_settings)
+			extra["thinking"] = {"type": "enabled", "budget_tokens": budget}
+			temperature = 1.0
+
+		text_parts: list[str] = []
+		thinking_parts: list[str] = []
 		try:
 			async with self._client.messages.stream(
 				model=model.value,
 				system=system_prompt,
 				messages=_to_anthropic_messages(user_message, history),
 				max_tokens=resolve_max_tokens(chat_settings),
-				temperature=resolve_temperature(chat_settings),
+				temperature=temperature,
+				**extra,
 			) as stream:
-				async for delta in stream.text_stream:
-					if delta:
-						await emit_token(on_token, delta)
+				if thinking_on:
+					await self._consume_thinking_stream(stream, on_token, on_thinking, text_parts, thinking_parts)
+				else:
+					async for delta in stream.text_stream:
+						if delta:
+							text_parts.append(delta)
+							await emit_token(on_token, delta)
 				final = await stream.get_final_message()
 		except APIError as e:
 			raise ExceptionHandler.classify_provider_error(
@@ -72,9 +95,35 @@ class AnthropicGateway(ILLMProviderGateway):
 				details={"stop_reason": stop_reason},
 			)
 
-		text = "".join(b.text for b in final.content if getattr(b, "type", None) == "text")
 		usage = {
 			"input_tokens": final.usage.input_tokens,
 			"output_tokens": final.usage.output_tokens,
 		}
-		return LLMResponse(text=text, model=model, usage=usage, provider=LLMProvider.ANTHROPIC.value)
+		return LLMResponse(
+			text="".join(text_parts),
+			model=model,
+			usage=usage,
+			provider=LLMProvider.ANTHROPIC.value,
+			reasoning="".join(thinking_parts) or None,
+		)
+
+	@staticmethod
+	async def _consume_thinking_stream(stream, on_token, on_thinking, text_parts, thinking_parts) -> None:
+		"""Iterate the raw event stream so thinking blocks are not skipped.
+
+		`stream.text_stream` only yields answer text; extended thinking arrives as
+		separate `thinking_delta` content-block deltas that text_stream discards, so
+		when thinking is on we walk the event stream and route each delta to its sink.
+		"""
+		async for event in stream:
+			if event.type != "content_block_delta":
+				continue
+			delta_type = getattr(event.delta, "type", None)
+			if delta_type == "thinking_delta":
+				text = event.delta.thinking
+				thinking_parts.append(text)
+				await emit_thinking(on_thinking, text)
+			elif delta_type == "text_delta":
+				text = event.delta.text
+				text_parts.append(text)
+				await emit_token(on_token, text)

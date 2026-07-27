@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class MockService(ILLMProviderService):
 	_gateway: MockGateway
 
-	async def generate(self, request: LLMRequest, on_token=None) -> UserMessageDTO:
+	async def generate(self, request: LLMRequest, on_token=None, on_thinking=None) -> UserMessageDTO:
 		resp: LLMResponse = await self._gateway.generate(
 			model=request.message.llm_model,
 			system_prompt=request.system_prompt,
@@ -20,6 +20,7 @@ class MockService(ILLMProviderService):
 			history=request.history,
 			chat_settings=request.chat_settings,
 			on_token=on_token,
+			on_thinking=on_thinking,
 		)
 		return UserMessageDTO(
 			chat_id=request.message.chat_id,

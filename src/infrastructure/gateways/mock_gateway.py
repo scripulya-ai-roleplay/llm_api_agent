@@ -30,6 +30,7 @@ class MockGateway(ILLMProviderGateway):
 		history: list[UserMessageDTO],  # noqa: ARG002 - unused by the mock
 		chat_settings: ChatSettings | None = None,  # noqa: ARG002 - unused by the mock
 		on_token=None,
+		on_thinking=None,  # noqa: ARG002 - the mock never thinks
 	) -> LLMResponse:
 		self.logger.info("Mock gateway received: %s", user_message)
 		text = f"Mock response for: {user_message}"

@@ -33,7 +33,7 @@ class LLMModelType(StrEnum):
 
 	# Google
 	gemini_flash_preview = "gemini-3-flash-preview"
-	gemini_pro = "gemini-2.5-pro"
+	gemini_pro = "gemini-3.1-pro-preview"
 
 	# Z.ai (GLM, OpenAI-compatible)
 	glm_5_2 = "glm-5.2"

@@ -19,15 +19,20 @@ class UserMessageDTO(BaseModel):
 	message: str
 	llm_model: LLMModelType | None = LLMModelType.testing_mock
 	role: ChatRoles
+	reasoning: str | None = None
 
 
 class LLMResponse(BaseModel):
-	"""Raw provider generation result (provider-internal, used for logging/cost)."""
+	"""Raw provider generation result (provider-internal, used for logging/cost).
+
+	`reasoning` carries the model's chain-of-thought ("thinking") when the
+	provider surfaced one; None for non-reasoning generations."""
 
 	text: str
 	model: LLMModelType
 	usage: dict | None = None
 	provider: str
+	reasoning: str | None = None
 
 
 class LLMRequest(BaseModel):
@@ -88,6 +93,7 @@ class ILLMProviderGateway(abc.ABC):
 		history: list[UserMessageDTO],
 		chat_settings: ChatSettings | None = None,
 		on_token: Callable[[str], Awaitable[None]] | None = None,
+		on_thinking: Callable[[str], Awaitable[None]] | None = None,
 	) -> LLMResponse: ...
 
 
@@ -102,7 +108,10 @@ class ILLMProviderService(abc.ABC):
 
 	@abc.abstractmethod
 	async def generate(
-		self, request: LLMRequest, on_token: Callable[[str], Awaitable[None]] | None = None
+		self,
+		request: LLMRequest,
+		on_token: Callable[[str], Awaitable[None]] | None = None,
+		on_thinking: Callable[[str], Awaitable[None]] | None = None,
 	) -> UserMessageDTO: ...
 
 
@@ -116,5 +125,8 @@ class IAgentService(abc.ABC):
 
 	@abc.abstractmethod
 	async def handle(
-		self, request: LLMRequest, on_token: Callable[[str], Awaitable[None]] | None = None
+		self,
+		request: LLMRequest,
+		on_token: Callable[[str], Awaitable[None]] | None = None,
+		on_thinking: Callable[[str], Awaitable[None]] | None = None,
 	) -> UserMessageDTO: ...
