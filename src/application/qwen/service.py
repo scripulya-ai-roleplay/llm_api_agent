@@ -1,0 +1,37 @@
+import logging
+from dataclasses import dataclass
+
+from src.application.ports import ILLMProviderService, LLMRequest, LLMResponse, UserMessageDTO
+from src.domain.models import ChatRoles
+from src.infrastructure.gateways.qwen_gateway import QwenGateway
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class QwenService(ILLMProviderService):
+	_gateway: QwenGateway
+
+	async def generate(self, request: LLMRequest, on_token=None, on_thinking=None) -> UserMessageDTO:
+		resp: LLMResponse = await self._gateway.generate(
+			model=request.message.llm_model,
+			system_prompt=request.system_prompt,
+			user_message=request.message.message,
+			history=request.history,
+			chat_settings=request.chat_settings,
+			on_token=on_token,
+			on_thinking=on_thinking,
+		)
+		logger.info(
+			"qwen ok model=%s usage=%s chat_id=%s",
+			resp.model,
+			resp.usage,
+			request.message.chat_id,
+		)
+		return UserMessageDTO(
+			chat_id=request.message.chat_id,
+			message=resp.text,
+			llm_model=request.message.llm_model,
+			role=ChatRoles.MODEL,
+			reasoning=resp.reasoning,
+		)

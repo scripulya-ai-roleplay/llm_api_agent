@@ -179,7 +179,8 @@ class TestZaiGateway:
 		assert "".join(tokens) == "hello world"
 
 		kwargs = gateway._client.chat.completions.create.call_args.kwargs
-		assert kwargs["extra_body"] == {"thinking": {"type": "enabled"}}
+		assert kwargs["extra_body"]["thinking"] == {"type": "enabled"}
+		assert kwargs["extra_body"]["reasoning_effort"] == "medium"
 
 	@pytest.mark.asyncio
 	async def test_reasoning_off_omits_thinking_param(self, gateway):

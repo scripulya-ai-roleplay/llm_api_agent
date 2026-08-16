@@ -29,6 +29,8 @@ class Settings(BaseSettings):
 	GEMINI_API_KEY: str = ""
 	ZAI_API_KEY: str = ""
 	ZAI_BASE_URL: str = "https://api.z.ai/api/paas/v4"
+	QWEN_API_KEY: str = ""
+	QWEN_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 	DEEPSEEK_API_KEY: str = ""
 	DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
 

@@ -16,6 +16,7 @@ class LLMProvider(StrEnum):
 	ANTHROPIC = "anthropic"
 	GOOGLE = "google"
 	ZAI = "zai"
+	QWEN = "qwen"
 	DEEPSEEK = "deepseek"
 
 
@@ -40,6 +41,11 @@ class LLMModelType(StrEnum):
 	glm_4_6 = "glm-4.6"
 	glm_4_5 = "glm-4.5"
 
+	# Qwen (DashScope, OpenAI-compatible)
+	qwen_plus = "qwen-plus"
+	qwen_turbo = "qwen-turbo"
+	qwen_max = "qwen-max"
+
 	# DeepSeek (OpenAI-compatible)
 	deepseek_chat = "deepseek-chat"
 	deepseek_reasoner = "deepseek-reasoner"
@@ -56,6 +62,9 @@ MODEL_PROVIDER_MAP: dict[LLMModelType, LLMProvider] = {
 	LLMModelType.glm_5_2: LLMProvider.ZAI,
 	LLMModelType.glm_4_6: LLMProvider.ZAI,
 	LLMModelType.glm_4_5: LLMProvider.ZAI,
+	LLMModelType.qwen_plus: LLMProvider.QWEN,
+	LLMModelType.qwen_turbo: LLMProvider.QWEN,
+	LLMModelType.qwen_max: LLMProvider.QWEN,
 	LLMModelType.deepseek_chat: LLMProvider.DEEPSEEK,
 	LLMModelType.deepseek_reasoner: LLMProvider.DEEPSEEK,
 }

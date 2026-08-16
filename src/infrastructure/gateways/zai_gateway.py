@@ -6,7 +6,13 @@ from openai import APIError, AsyncOpenAI
 
 from src.application.ports import ILLMProviderGateway, LLMResponse, UserMessageDTO
 from src.conf import settings
-from src.domain.chat_settings import ChatSettings, reasoning_enabled, resolve_max_tokens, resolve_temperature
+from src.domain.chat_settings import (
+	ChatSettings,
+	reasoning_enabled,
+	resolve_max_tokens,
+	resolve_reasoning_effort,
+	resolve_temperature,
+)
 from src.domain.models import ChatRoles, LLMModelType, LLMProvider
 from src.infrastructure.exception_handler import ExceptionHandler
 from src.infrastructure.exceptions import ContentSafetyException
@@ -53,7 +59,11 @@ class ZaiGateway(ILLMProviderGateway):
 		# toggle.
 		extra: dict = {}
 		if reasoning_enabled(chat_settings):
-			extra["extra_body"] = {"thinking": {"type": "enabled"}}
+			extra_body: dict = {"thinking": {"type": "enabled"}}
+			effort = resolve_reasoning_effort(chat_settings)
+			if effort is not None:
+				extra_body["reasoning_effort"] = effort
+			extra["extra_body"] = extra_body
 		try:
 			# stream_options omitted: third-party OpenAI-compatible servers may reject it,
 			# so usage is unavailable on the streaming path (it was only used for logging).

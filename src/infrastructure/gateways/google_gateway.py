@@ -10,7 +10,7 @@ from src.conf import settings
 from src.domain.chat_settings import (
 	ChatSettings,
 	reasoning_enabled,
-	resolve_max_tokens,
+	resolve_reasoning_max_tokens,
 	resolve_temperature,
 	resolve_thinking_budget,
 )
@@ -66,7 +66,7 @@ class GoogleGateway(ILLMProviderGateway):
 		config_kwargs: dict = {
 			"system_instruction": system_prompt,
 			"temperature": resolve_temperature(chat_settings),
-			"max_output_tokens": resolve_max_tokens(chat_settings),
+			"max_output_tokens": resolve_reasoning_max_tokens(chat_settings),
 		}
 		if thinking_on:
 			# include_thoughts flags thought parts with part.thought=True so we can route

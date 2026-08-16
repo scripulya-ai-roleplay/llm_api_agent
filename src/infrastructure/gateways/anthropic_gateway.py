@@ -9,7 +9,7 @@ from src.conf import settings
 from src.domain.chat_settings import (
 	ChatSettings,
 	reasoning_enabled,
-	resolve_max_tokens,
+	resolve_reasoning_max_tokens,
 	resolve_temperature,
 	resolve_thinking_budget,
 )
@@ -68,7 +68,7 @@ class AnthropicGateway(ILLMProviderGateway):
 				model=model.value,
 				system=system_prompt,
 				messages=_to_anthropic_messages(user_message, history),
-				max_tokens=resolve_max_tokens(chat_settings),
+				max_tokens=resolve_reasoning_max_tokens(chat_settings),
 				temperature=temperature,
 				**extra,
 			) as stream:

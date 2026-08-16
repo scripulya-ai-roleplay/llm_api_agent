@@ -121,24 +121,57 @@ def reasoning_enabled(chat_settings: ChatSettings | None) -> bool:
 	return bool(chat_settings and chat_settings.reasoning == Toggle.ON)
 
 
-_THINKING_BUDGET: dict[ReasoningEffort, int] = {
-	ReasoningEffort.MIN: 1024,
-	ReasoningEffort.LOW: 4096,
-	ReasoningEffort.MID: 8192,
-	ReasoningEffort.HIGH: 16000,
+_THINKING_BUDGET_SHARE: dict[ReasoningEffort, float] = {
+	ReasoningEffort.MIN: 0.0,
+	ReasoningEffort.LOW: 0.25,
+	ReasoningEffort.MID: 0.5,
+	ReasoningEffort.HIGH: 1.0,
 }
+
+_ANTHROPIC_MIN_THINKING_BUDGET = 1024
 
 
 def resolve_thinking_budget(chat_settings: ChatSettings | None) -> int | None:
 	"""Concrete thinking budget (tokens) for a provider call when reasoning is on.
 
-	Anthropic requires budget_tokens in [1024, max_tokens). The resolved effort
-	level is clamped down so it always leaves room for the answer under the chat's
-	output cap. Returns None when reasoning is off."""
+	The budget is a share of the chat's output-token cap so the effort setting
+	stays meaningful at every responseTokenLimit: MIN adds only the provider
+	minimum, HIGH can use up to the whole cap. Anthropic additionally requires
+	budget_tokens in [1024, max_tokens); the upper bound keeps at least the
+	provider minimum for the answer itself. Returns None when reasoning is off."""
 	if not reasoning_enabled(chat_settings):
 		return None
-	budget = _THINKING_BUDGET.get(chat_settings.reasoningEffort, 8192)
+	share = _THINKING_BUDGET_SHARE.get(chat_settings.reasoningEffort, 0.5)
 	cap = resolve_max_tokens(chat_settings)
-	if budget >= cap:
-		budget = max(1024, cap - 1024)
-	return budget
+	budget = int(cap * share)
+	return min(max(budget, _ANTHROPIC_MIN_THINKING_BUDGET), cap - _ANTHROPIC_MIN_THINKING_BUDGET)
+
+
+def resolve_reasoning_max_tokens(chat_settings: ChatSettings | None) -> int:
+	"""Output cap for a reasoning call: the chat's cap raised just enough that the
+	effort-derived thinking budget fits under it with room for the answer
+	(Anthropic requires budget_tokens < max_tokens)."""
+	cap = resolve_max_tokens(chat_settings)
+	budget = resolve_thinking_budget(chat_settings)
+	if budget is None:
+		return cap
+	return max(cap, budget + _ANTHROPIC_MIN_THINKING_BUDGET)
+
+
+_ZAI_EFFORT: dict[ReasoningEffort, str] = {
+	ReasoningEffort.MIN: "min",
+	ReasoningEffort.LOW: "low",
+	ReasoningEffort.MID: "medium",
+	ReasoningEffort.HIGH: "high",
+}
+
+
+def resolve_reasoning_effort(chat_settings: ChatSettings | None) -> str | None:
+	"""Provider-level effort string for OpenAI-compatible deep-thinking params
+	(Z.ai GLM 5.2+: `reasoning_effort`, effective only when thinking is enabled).
+
+	Returns None when reasoning is off or no effort is mapped; the caller then
+	omits the parameter and the provider default applies."""
+	if not reasoning_enabled(chat_settings):
+		return None
+	return _ZAI_EFFORT.get(chat_settings.reasoningEffort) if chat_settings else None

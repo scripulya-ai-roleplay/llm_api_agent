@@ -10,6 +10,7 @@ from src.application.deepseek.service import DeepSeekService
 from src.application.google.service import GoogleService
 from src.application.mock.service import MockService
 from src.application.ports import IAgentService
+from src.application.qwen.service import QwenService
 from src.application.zai.service import ZaiService
 from src.conf import settings
 from src.domain.models import LLMProvider
@@ -18,6 +19,7 @@ from src.infrastructure.gateways.anthropic_gateway import AnthropicGateway
 from src.infrastructure.gateways.deepseek_gateway import DeepSeekGateway
 from src.infrastructure.gateways.google_gateway import GoogleGateway
 from src.infrastructure.gateways.mock_gateway import MockGateway
+from src.infrastructure.gateways.qwen_gateway import QwenGateway
 from src.infrastructure.gateways.zai_gateway import ZaiGateway
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,10 @@ class GatewayProvider(Provider):
 		return ZaiGateway(logger=logger)
 
 	@provide(scope=Scope.APP)
+	def qwen_gateway(self) -> QwenGateway:
+		return QwenGateway(logger=logger)
+
+	@provide(scope=Scope.APP)
 	def deepseek_gateway(self) -> DeepSeekGateway:
 		return DeepSeekGateway(logger=logger)
 
@@ -63,6 +69,10 @@ class ServiceProvider(Provider):
 	@provide(scope=Scope.APP)
 	def zai_service(self, gateway: ZaiGateway) -> ZaiService:
 		return ZaiService(_gateway=gateway)
+
+	@provide(scope=Scope.APP)
+	def qwen_service(self, gateway: QwenGateway) -> QwenService:
+		return QwenService(_gateway=gateway)
 
 	@provide(scope=Scope.APP)
 	def deepseek_service(self, gateway: DeepSeekGateway) -> DeepSeekService:
@@ -95,6 +105,7 @@ class AgentServiceProvider(Provider):
 		anthropic: AnthropicService,
 		google: GoogleService,
 		zai: ZaiService,
+		qwen: QwenService,
 		deepseek: DeepSeekService,
 		mock: MockService,
 	) -> IAgentService:
@@ -103,6 +114,7 @@ class AgentServiceProvider(Provider):
 				LLMProvider.ANTHROPIC: anthropic,
 				LLMProvider.GOOGLE: google,
 				LLMProvider.ZAI: zai,
+				LLMProvider.QWEN: qwen,
 				LLMProvider.DEEPSEEK: deepseek,
 				LLMProvider.MOCK: mock,
 			}
